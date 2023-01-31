@@ -17,7 +17,7 @@ DOMAINS_TO_UPDATE = os.environ['DOMAINS_TO_UPDATE'].split(",")
 def list_dns_records(zone_id: str,
                      api_token: str) -> dict:
     url = f"{BASE_URL}zones/{zone_id}/dns_records"
-    print(url)
+    print(f"Getting list of current records...")
     response = requests.get(url, headers={
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_token}"
@@ -37,7 +37,7 @@ def update_dns_record(zone_id: str,
                       api_token: str,
                       record: dict) -> dict:
     url = f"{BASE_URL}zones/{zone_id}/dns_records/{record['id']}"
-    print(url)
+    print(f"updating {record['name']} {record['type']} record with content {record['content']}")
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_token}"
@@ -48,6 +48,18 @@ def update_dns_record(zone_id: str,
                             )
 
     return response.json()
+
+
+def update_multiple_dns_records(zone_id: str,
+                                api_token: str,
+                                records: list[dict]) -> list[dict]:
+    results = []
+    for r in records:
+        result = update_dns_record(zone_id=zone_id,
+                                   api_token=api_token,
+                                   record=r)
+        results.append(result)
+    return results
 
 
 def get_external_ip() -> str:
@@ -73,20 +85,15 @@ def update_records(records: list[dict],
 
 def main():
     records = list_dns_records(zone_id=ZONE_ID, api_token=API_TOKEN)
-    # print(json.dumps(records, indent=2))
     filtered_records = filter_records(dns_records=records, domains=DOMAINS_TO_UPDATE, record_type="A")
-    # print(json.dumps(filtered_records, indent=2))
     external_ip = get_external_ip()
     print(f"External IP is {external_ip}")
     updated_records = update_records(filtered_records, new_ip=external_ip)
 
-    print(json.dumps(updated_records, indent=2))
-
-    # for r in filtered_records:
-    #     update_dns_record(zone_id=ZONE_ID,
-    #                       api_token=API_TOKEN,
-    #                       record=r)
-
+    if updated_records:
+        update_multiple_dns_records(zone_id=ZONE_ID,
+                                    api_token=API_TOKEN,
+                                    records=updated_records)
 
 if __name__ == '__main__':
     main()
