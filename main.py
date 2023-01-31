@@ -1,5 +1,6 @@
 import json
 import os
+from copy import deepcopy
 
 import requests
 from dotenv import load_dotenv
@@ -49,26 +50,42 @@ def update_dns_record(zone_id: str,
     return response.json()
 
 
+def get_external_ip() -> str:
+    ip = requests.get('https://api.ipify.org').text
+    return ip
+
+
+def update_records(records: list[dict],
+                   new_ip: str) -> list[dict]:
+    updated_records = []
+    for r in records:
+        if r["content"] == new_ip:
+            print(f"Skip {r['name']} - address not changed")
+            continue
+        r_copy = deepcopy(r)
+        r_copy["content"] = new_ip
+        r_copy["comment"] = "updated automatically by konso's updater script"
+        del r_copy["created_on"]
+        del r_copy["modified_on"]
+        updated_records.append(r_copy)
+    return updated_records
+
+
 def main():
     records = list_dns_records(zone_id=ZONE_ID, api_token=API_TOKEN)
     # print(json.dumps(records, indent=2))
     filtered_records = filter_records(dns_records=records, domains=DOMAINS_TO_UPDATE, record_type="A")
     # print(json.dumps(filtered_records, indent=2))
+    external_ip = get_external_ip()
+    print(f"External IP is {external_ip}")
+    updated_records = update_records(filtered_records, new_ip=external_ip)
 
-    for r in filtered_records:
-        r["content"] = "1.1.1.1"
-        r["comment"] = "updated automatically by konso's updater script"
-        del r["created_on"]
-        del r["modified_on"]
+    print(json.dumps(updated_records, indent=2))
 
-    print(json.dumps(filtered_records, indent=2))
-
-    for r in filtered_records:
-        update_dns_record(zone_id=ZONE_ID,
-                          api_token=API_TOKEN,
-                          record=r)
-
-
+    # for r in filtered_records:
+    #     update_dns_record(zone_id=ZONE_ID,
+    #                       api_token=API_TOKEN,
+    #                       record=r)
 
 
 if __name__ == '__main__':
